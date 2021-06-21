@@ -1027,51 +1027,233 @@ let LoadHTMLPlatformer;
 (function(){
     const html = document.getElementsByTagName('html')[0];
     const world_bounds = {w: 0, h: 0};
+    const defaultOptions = {collidableClass: 'collidable'};
     let game;
     const GRAVITY = 900;
-    const MOVESPEED = 90;
-    const ACCEL = 400;
+    const MOVESPEED = 180;
+    const ACCEL = 800;
     const DEACCEL = 1000;
+    const JUMPSPEED = -210;
+    const VARJUMPTIME = .2;
     const {appr,actorCollision} = LIB.math;
     const inputKeys = {
         left: 'ArrowLeft',
         right: 'ArrowRight',
+        up: 'ArrowUp',
+        down: 'ArrowDown',
         jump: 'Space'
     }
     class Player extends LIB.Actor 
     {
         kbm = null;
         canJump = true;
+        jumpGraceTimer = 0;
+        varJumpTimer = 0;
+        groundedTimer = 0;
+        jumpTimer = 0;
+        facing = 1;
         constructor(scene)
         {
-            super(scene,120,50,20,20);
+            super(scene,120,50,30,42);
             this.kbm = scene.kbm;
+            this.stateManager.add(
+                'normal',
+                this.normalUpdate.bind(this),
+                null,
+                null,
+                null,
+                true
+            );
+            this.animationManager.add(
+                'idle',
+                new LIB.Animation(
+                    [
+                        {
+                            key: 'character',
+                            x: 0,
+                            y: 0,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 20,
+                            y: 0,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 40,
+                            y: 0,
+                            w: 20,
+                            h: 22
+                        }
+                    ],
+                    7,
+                    true
+                ),
+                true
+            );
+            this.animationManager.add(
+                'run',
+                new LIB.Animation(
+                    [
+                        {
+                            key: 'character',
+                            x: 0,
+                            y: 22,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 20,
+                            y: 22,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 40,
+                            y: 22,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 60,
+                            y: 22,
+                            w: 20,
+                            h: 22
+                        },
+                        {
+                            key: 'character',
+                            x: 80,
+                            y: 22,
+                            w: 20,
+                            h: 22
+                        }
+                    ],
+                    8,
+                    true
+                ),
+            );
+            this.animationManager.add(
+                'rising',
+                new LIB.Animation(
+                    [{
+                        key: 'character',
+                        x: 0,
+                        y: 44,
+                        w: 20,
+                        h: 22
+                    }],
+                    8,
+                    false
+                )
+            );
+            this.animationManager.add(
+                'falling',
+                new LIB.Animation(
+                    [{
+                        key: 'character',
+                        x: 20,
+                        y: 44,
+                        w: 20,
+                        h: 22
+                    }],
+                    8,
+                    false
+                )
+            );
+        }
+
+        jump()
+        {
+            this.jumpGraceTimer = 0;
+            this.varJumpTimer = VARJUMPTIME;
+            this.speedY += JUMPSPEED;
+            this.varJumpSpeed = this.speedY;
+            this.jumpTimer = 0;
+        }
+
+        onCollisionY()
+        {
+            if (this.speedY > 0)
+                this.groundedTimer = 0.2;
+            this.speedY = 0;
+        }
+
+        normalUpdate(dt)
+        {
+            let kbm = this.kbm;
+            let mx = this.mx;
+
+            if (this.varJumpTimer > 0)
+            {
+                if (kbm.getPressed(inputKeys.jump))
+                    this.speedY = Math.min(this.speedY, this.varJumpSpeed);
+                else
+                    this.varJumpTimer = 0;
+            }
+            
+            if (this.canJump && kbm.getDown(inputKeys.jump))
+                this.jumpTimer = 0.2;
+            if (this.groundedTimer > 0 && this.jumpTimer > 0)
+                this.jump();
+
+            this.speedX = appr(this.speedX,MOVESPEED * mx,mx == 0 ? dt * DEACCEL : dt * ACCEL);
+            this.speedY = appr(this.speedY,400, GRAVITY * dt);
+            this.moveX(dt * this.speedX);
+            this.moveY(dt * this.speedY,() => this.onCollisionY());
+
+            if (mx > 0)
+                this.facing = 0;
+            else if (mx < 0)
+                this.facing = 1;
+
+            if (this.groundedTimer > 0)
+            {
+                if (this.speedX == 0)
+                    this.animationManager.set('idle');
+                else
+                    this.animationManager.set('run');
+            }
+            else if (this.speedY < 0)
+                this.animationManager.set('rising');
+            else
+                this.animationManager.set('falling');
+                
         }
 
         update(dt)
         {
             let kbm = this.kbm;
-            let mx = (kbm.getPressed(inputKeys.right) ? 1 : 0) - (kbm.getPressed(inputKeys.left) ? 1 : 0);
-            if (this.canJump && kbm.getDown(inputKeys.jump))
-            {
-                this.canJump = false;
-                this.speedY = -90;
-            }
-            this.speedX = appr(this.speedX,MOVESPEED * mx,mx == 0 ? dt * DEACCEL : dt * ACCEL);
-            this.speedY = appr(this.speedY,160, GRAVITY * dt);
-            this.moveX(dt * this.speedX);
-            this.moveY(dt * this.speedY,() => { this.speedY = 0; this.canJump = true; });
+            this.varJumpTimer -= dt;
+            this.jumpGraceTimer -= dt;
+            this.groundedTimer -= dt;
+            this.jumpTimer -= dt;
+            this.mx = (kbm.getPressed(inputKeys.right) ? 1 : 0) - (kbm.getPressed(inputKeys.left) ? 1 : 0);
+            this.my = (kbm.getPressed(inputKeys.down) ? 1 : 0) - (kbm.getPressed(inputKeys.up) ? 1 : 0);
+            this.stateManager.update(dt);
+            this.animationManager.update(dt);
         }
 
         render()
         {
-            let hitbox  = this.hitbox;
+            let {x,y,w,h,key} = this.animationManager.getKey();
             let position = this.position;
-            game.fillRect(
-                hitbox.left + position.x,
-                hitbox.top +  position.y,
-                hitbox.w,
-                hitbox.h
+            game.drawSpriteSection(
+                key,
+                position.x - w,
+                position.y - h * 2,
+                x,
+                y,
+                w,
+                h,
+                this.facing,
+                2
             );
         }
     }
@@ -1086,11 +1268,22 @@ let LoadHTMLPlatformer;
             this.kbm = this.game.keyboardManager;
             this.player = new Player(this);
         }
+        load()
+        {
+            this.loadImage({
+                key: 'character',
+                src: './assets/HTMLPlatformerSpritesheet.png',
+                width: 20,
+                height: 22
+            });
+        }
         start()
         {
             let keyboardManager = this.kbm;
             keyboardManager.addKey(inputKeys.left);
             keyboardManager.addKey(inputKeys.right);
+            keyboardManager.addKey(inputKeys.up);
+            keyboardManager.addKey(inputKeys.down);
             keyboardManager.addKey(inputKeys.jump);
         }
         update(dt){
@@ -1189,11 +1382,10 @@ let LoadHTMLPlatformer;
             );
         }
 
-        drawSpriteSection(key,x,y,sx,sy,sw,sh,flip)
+        drawSpriteSection(key,x,y,sx,sy,sw,sh,flip,scale)
         {
             let drawCanvas = this.drawCanvas;
             let data = this.spriteData[key];
-            let scale = drawCanvas.scale;
             if (flip)
             {
                 let ctx = drawCanvas.ctx;
@@ -1205,10 +1397,10 @@ let LoadHTMLPlatformer;
                     sy,
                     sw,
                     sh,
-                    (x + data.left + sw) * -1,
-                    y + data.top,
-                    sw,
-                    sh
+                    ((x + sw * scale) * -1),
+                    y,
+                    sw * scale,
+                    sh * scale
                 );
                 ctx.restore();
             }
@@ -1219,10 +1411,10 @@ let LoadHTMLPlatformer;
                     sy,
                     sw,
                     sh,
-                    x + data.left,
-                    y + data.top,
-                    sw,
-                    sh
+                    x,
+                    y,
+                    sw * scale,
+                    sh * scale
                 );
         }
 
@@ -1265,7 +1457,7 @@ let LoadHTMLPlatformer;
             canvas.offset.x = 0;
             canvas.offset.y = 0;
             canvas.scale = 1;
-
+            this.drawCanvas.ctx.imageSmoothingEnabled = false;
             if (collidableClass)
             {
                 let nodes = document.getElementsByClassName(collidableClass);
@@ -1285,7 +1477,7 @@ let LoadHTMLPlatformer;
         }
     }
     
-    LoadHTMLPlatformer = (options) => {
+    LoadHTMLPlatformer = (options = defaultOptions) => {
         game = new Game(options);
-    }
+    };
 }());
