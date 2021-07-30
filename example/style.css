@@ -1,0 +1,31 @@
+body
+{
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.box
+{
+    width: 40px;
+    height: 40px;
+    position: absolute;
+}
+
+#floor
+{
+    position: absolute;
+    background-color: black;
+    height: 20px;
+    width: 100vw;
+    left: 0;
+    top: 480px;
+}
+
+.obstacle
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
